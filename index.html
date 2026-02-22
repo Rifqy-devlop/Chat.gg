@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat App</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b141a">
+
+<style>
+body{
+    margin:0;
+    font-family:Arial, sans-serif;
+    background:#000;
+    color:white;
+}
+
+.header{
+    background:#111;
+    padding:10px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+.header img{
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    object-fit:cover;
+    cursor:pointer;
+}
+
+.header .name{
+    font-weight:bold;
+    flex:1;
+    cursor:pointer;
+}
+
+.chat{
+    height:75vh;
+    overflow-y:auto;
+    padding:10px;
+    display:flex;
+    flex-direction:column;
+    background:#000;
+}
+
+.message{
+    max-width:75%;
+    padding:8px 10px;
+    margin:5px 0;
+    border-radius:10px;
+    font-size:14px;
+    position:relative;
+    word-wrap:break-word;
+}
+
+.left{
+    align-self:flex-start;
+    background:#1f1f1f;
+}
+
+.right{
+    align-self:flex-end;
+    background:#0066ff;
+}
+
+.time{
+    font-size:10px;
+    text-align:right;
+    margin-top:3px;
+    color:#90caf9;
+}
+
+.input-area{
+    position:fixed;
+    bottom:0;
+    width:100%;
+    display:flex;
+    gap:5px;
+    padding:8px;
+    background:#111;
+}
+
+input[type=text]{
+    flex:1;
+    border-radius:20px;
+    border:none;
+    padding:8px 12px;
+    background:#222;
+    color:white;
+    outline:none;
+}
+
+button{
+    border:none;
+    border-radius:20px;
+    padding:8px 12px;
+    cursor:pointer;
+    background:#0066ff;
+    color:white;
+}
+
+.popup{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.6);
+    display:none;
+    align-items:center;
+    justify-content:center;
+}
+
+.popup-content{
+    background:#1a1a1a;
+    padding:20px;
+    border-radius:15px;
+    text-align:center;
+}
+
+.popup-content button{
+    margin:5px;
+    background:#333;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <img id="profileImg" src="icon.png">
+    <div class="name" id="chatName">Nama</div>
+</div>
+
+<div class="chat" id="chatBox"></div>
+
+<div class="input-area">
+    <button onclick="toggleSide()">↔</button>
+    <input type="file" id="imgInput" accept="image/*" hidden>
+    <button onclick="document.getElementById('imgInput').click()">📷</button>
+    <input type="text" id="msgInput" placeholder="Ketik pesan">
+    <button onclick="sendMsg()">➤</button>
+</div>
+
+<div class="popup" id="popup">
+  <div class="popup-content">
+    <button onclick="editMsg()">Edit</button>
+    <button onclick="deleteMsg()">Hapus</button>
+    <button onclick="deleteAll()">Hapus Semua</button>
+    <button onclick="closePopup()">Tutup</button>
+  </div>
+</div>
+
+<script>
+let side="right";
+let selected=null;
+
+function toggleSide(){
+    side = side==="right"?"left":"right";
+}
+
+function getTime(){
+    let d=new Date();
+    return d.getHours().toString().padStart(2,'0')+":"+d.getMinutes().toString().padStart(2,'0');
+}
+
+function saveChat(data){
+    localStorage.setItem("chatData", JSON.stringify(data));
+}
+
+function loadChat(){
+    let data = JSON.parse(localStorage.getItem("chatData") || "[]");
+    document.getElementById("chatBox").innerHTML="";
+    data.forEach(msg=>{
+        renderMessage(msg);
+    });
+}
+
+function renderMessage(msg){
+    let div=document.createElement("div");
+    div.className="message "+msg.side;
+
+    if(msg.type==="text"){
+        div.innerHTML=msg.content;
+    }else if(msg.type==="image"){
+        div.innerHTML="<img src='"+msg.content+"' style='max-width:100%;border-radius:10px'>";
+    }
+
+    let time=document.createElement("div");
+    time.className="time";
+    time.innerText=msg.time+" ✓✓";
+    div.appendChild(time);
+
+    addLongPress(div,msg);
+    document.getElementById("chatBox").appendChild(div);
+}
+
+function sendMsg(){
+    let input=document.getElementById("msgInput");
+    let text=input.value.trim();
+    if(text==="") return;
+
+    let data = JSON.parse(localStorage.getItem("chatData") || "[]");
+
+    let msg={
+        type:"text",
+        content:text,
+        side:side,
+        time:getTime()
+    };
+
+    data.push(msg);
+    saveChat(data);
+    renderMessage(msg);
+
+    input.value="";
+}
+
+document.getElementById("imgInput").onchange=function(){
+    let file=this.files[0];
+    if(!file) return;
+
+    let reader=new FileReader();
+    reader.onload=function(e){
+
+        let data = JSON.parse(localStorage.getItem("chatData") || "[]");
+
+        let msg={
+            type:"image",
+            content:e.target.result,
+            side:side,
+            time:getTime()
+        };
+
+        data.push(msg);
+        saveChat(data);
+        renderMessage(msg);
+    }
+
+    reader.readAsDataURL(file);
+}
+
+function addLongPress(el,msg){
+    let timer;
+
+    el.onmousedown=function(){
+        timer=setTimeout(()=>{
+            selected=msg;
+            document.getElementById("popup").style.display="flex";
+        },5000);
+    }
+
+    el.onmouseup=function(){
+        clearTimeout(timer);
+    }
+}
+
+function deleteMsg(){
+    let data = JSON.parse(localStorage.getItem("chatData") || "[]");
+    data = data.filter(m => m !== selected);
+    saveChat(data);
+    loadChat();
+    closePopup();
+}
+
+function editMsg(){
+    if(selected.type!=="text") return;
+
+    let text=prompt("Edit pesan:");
+    if(text){
+        selected.content=text;
+        saveChat(JSON.parse(localStorage.getItem("chatData")));
+        loadChat();
+    }
+    closePopup();
+}
+
+function deleteAll(){
+    localStorage.removeItem("chatData");
+    loadChat();
+    closePopup();
+}
+
+function closePopup(){
+    document.getElementById("popup").style.display="none";
+}
+
+window.onload=function(){
+    loadChat();
+}
+</script>
+
+</body>
+</html>
