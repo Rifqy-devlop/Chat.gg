@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat App</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b141a">
+
+<style>
+body{
+    margin:0;
+    font-family:Arial, sans-serif;
+    background:#000;
+    color:white;
+}
+
+.header{
+    background:#111;
+    padding:10px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+.header img{
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    object-fit:cover;
+    cursor:pointer;
+}
+
+.header .name{
+    font-weight:bold;
+    flex:1;
+    cursor:pointer;
+}
+
+.chat{
+    height:75vh;
+    overflow-y:auto;
+    padding:10px;
+    display:flex;
+    flex-direction:column;
+}
+
+.message{
+    max-width:75%;
+    padding:8px 10px;
+    margin:5px 0;
+    border-radius:12px;
+    font-size:14px;
+    word-wrap:break-word;
+}
+
+.left{
+    align-self:flex-start;
+    background:#1f1f1f;
+}
+
+.right{
+    align-self:flex-end;
+    background:#0066ff;
+}
+
+.time{
+    font-size:10px;
+    text-align:right;
+    margin-top:3px;
+    color:#a0d2ff;
+}
+
+.input-area{
+    position:fixed;
+    bottom:0;
+    width:100%;
+    display:flex;
+    gap:5px;
+    padding:8px;
+    background:#111;
+}
+
+input[type=text]{
+    flex:1;
+    border-radius:20px;
+    border:none;
+    padding:8px 12px;
+    background:#222;
+    color:white;
+    outline:none;
+}
+
+button{
+    border:none;
+    border-radius:20px;
+    padding:8px 12px;
+    cursor:pointer;
+    background:#0066ff;
+    color:white;
+}
+
+.popup{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.6);
+    display:none;
+    align-items:center;
+    justify-content:center;
+}
+
+.popup-content{
+    background:#1a1a1a;
+    padding:20px;
+    border-radius:15px;
+    text-align:center;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <img id="profileImg" src="icon.png">
+    <div class="name" id="chatName">Nama</div>
+</div>
+
+<div class="chat" id="chatBox"></div>
+
+<div class="input-area">
+    <button onclick="toggleSide()">➮</button>
+    <input type="file" id="imgInput" accept="image/*" hidden>
+    <button onclick="document.getElementById('imgInput').click()">+</button>
+    <input type="text" id="msgInput" placeholder="Ketik pesan">
+    <button onclick="sendMsg()">➤</button>
+</div>
+
+<div class="popup" id="popup">
+  <div class="popup-content">
+    <button onclick="editMsg()">Edit</button>
+    <button onclick="deleteMsg()">Hapus</button>
+    <button onclick="deleteAll()">Hapus Semua</button>
+    <button onclick="closePopup()">Tutup</button>
+  </div>
+</div>
+
+<script>
+let side="right";
+let selectedIndex=null;
+
+function toggleSide(){
+    side = side==="right"?"left":"right";
+}
+
+function getTime(){
+    let d=new Date();
+    return d.getHours().toString().padStart(2,'0')+":"+d.getMinutes().toString().padStart(2,'0');
+}
+
+function getData(){
+    return JSON.parse(localStorage.getItem("chatData")||"[]");
+}
+
+function saveData(data){
+    localStorage.setItem("chatData",JSON.stringify(data));
+}
+
+function render(){
+    let chatBox=document.getElementById("chatBox");
+    chatBox.innerHTML="";
+    let data=getData();
+    data.forEach((msg,i)=>{
+        let div=document.createElement("div");
+        div.className="message "+msg.side;
+
+        if(msg.type==="text"){
+            div.innerHTML=msg.content;
+        }else{
+            div.innerHTML="<img src='"+msg.content+"' style='max-width:100%;border-radius:10px'>";
+        }
+
+        let time=document.createElement("div");
+        time.className="time";
+        time.innerText=msg.time+" ";
+        div.appendChild(time);
+
+        addLongPress(div,i);
+        chatBox.appendChild(div);
+    });
+}
+
+function sendMsg(){
+    let input=document.getElementById("msgInput");
+    let text=input.value.trim();
+    if(text==="") return;
+
+    let data=getData();
+    data.push({
+        type:"text",
+        content:text,
+        side:side,
+        time:getTime()
+    });
+
+    saveData(data);
+    input.value="";
+    render();
+}
+
+document.getElementById("imgInput").onchange=function(){
+    let file=this.files[0];
+    if(!file) return;
+    let reader=new FileReader();
+    reader.onload=function(e){
+        let data=getData();
+        data.push({
+            type:"image",
+            content:e.target.result,
+            side:side,
+            time:getTime()
+        });
+        saveData(data);
+        render();
+    }
+    reader.readAsDataURL(file);
+}
+
+function addLongPress(el,index){
+    let timer;
+    el.onmousedown=function(){
+        timer=setTimeout(()=>{
+            selectedIndex=index;
+            document.getElementById("popup").style.display="flex";
+        },5000);
+    }
+    el.onmouseup=function(){
+        clearTimeout(timer);
+    }
+}
+
+function deleteMsg(){
+    let data=getData();
+    data.splice(selectedIndex,1);
+    saveData(data);
+    render();
+    closePopup();
+}
+
+function editMsg(){
+    let data=getData();
+    if(data[selectedIndex].type!=="text") return;
+    let text=prompt("Edit pesan:",data[selectedIndex].content);
+    if(text){
+        data[selectedIndex].content=text;
+        saveData(data);
+        render();
+    }
+    closePopup();
+}
+
+function deleteAll(){
+    localStorage.removeItem("chatData");
+    render();
+    closePopup();
+}
+
+function closePopup(){
+    document.getElementById("popup").style.display="none";
+}
+
+/* ===== NAMA & FOTO ===== */
+
+document.getElementById("chatName").onclick=function(){
+    let name=prompt("Ganti nama:",this.innerText);
+    if(name){
+        this.innerText=name;
+        localStorage.setItem("chatName",name);
+    }
+};
+
+document.getElementById("profileImg").onclick=function(){
+    let input=document.createElement("input");
+    input.type="file";
+    input.accept="image/*";
+    input.onchange=function(){
+        let reader=new FileReader();
+        reader.onload=function(e){
+            document.getElementById("profileImg").src=e.target.result;
+            localStorage.setItem("profileImg",e.target.result);
+        }
+        reader.readAsDataURL(this.files[0]);
+    };
+    input.click();
+};
+
+window.onload=function(){
+    render();
+    if(localStorage.getItem("chatName")){
+        document.getElementById("chatName").innerText=localStorage.getItem("chatName");
+    }
+    if(localStorage.getItem("profileImg")){
+        document.getElementById("profileImg").src=localStorage.getItem("profileImg");
+    }
+};
+</script>
+
+</body>
+</html>
